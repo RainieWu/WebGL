@@ -1,0 +1,121 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title></title>
+</head>
+<body>
+
+<canvas id="drawing"></canvas>
+
+<script type="x-webgl/x-vertex-shader" id="vertexShader">
+attribute vec2 aVertexPosition;
+void main() {
+	gl_Position = vec4(aVertexPosition, 0.0, 1.0);
+	gl_PointSize = 10.0;
+}
+</script>
+<script type="x-webgl/x-fragment-shader" id="fragmentShader">
+#ifdef GL_ES
+precision mediump float;
+#endif
+uniform vec4 uColor;
+void main() {
+	gl_FragColor = uColor;
+}
+</script>
+<script type="text/javascript">
+var drawing = document.getElementById("drawing");
+drawing.width = 500;
+drawing.height = 500;
+if(drawing.getContext) {
+	var gl;
+
+	try {
+		gl = drawing.getContext("experimental-webgl");
+	} catch(ex) {}
+
+	if(gl) {
+		console.log(gl);
+
+		// 清除<canvas>
+		gl.clearColor(0, 0, 0, 0.1);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+
+		// 定义顶点信息
+		var vertices = new Float32Array([0, 0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5]),
+			vertexSetSise = 2,
+			vertexSetCount = vertices.length / vertexSetSise;
+
+		// 设置缓冲区
+		var buffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+		// 检测错误
+		var errorCode = gl.getError();
+		while(errorCode) {
+			console.log("Error occurred: " + errorCode);
+			errorCode = gl.getError();
+		}
+
+		// 着色器
+		// 创建顶点着色器对象
+		var vertexGlsl = document.getElementById("vertexShader").text;
+		var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+		gl.shaderSource(vertexShader, vertexGlsl);
+		gl.compileShader(vertexShader);
+		// 创建片段着色器对象
+		var fragmentGlsl = document.getElementById("fragmentShader").text;
+		var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+		gl.shaderSource(fragmentShader, fragmentGlsl);
+		gl.compileShader(fragmentShader);
+		// 把着色器对象链接到着色器程序中
+		var program = gl.createProgram();
+		gl.attachShader(program, vertexShader);
+		gl.attachShader(program, fragmentShader);
+		gl.linkProgram(program);
+		gl.useProgram(program);
+		// 为顶点着色器传值
+		var aVertexPosition = gl.getAttribLocation(program, "aVertexPosition");
+		gl.enableVertexAttribArray(aVertexPosition);
+		gl.vertexAttribPointer(aVertexPosition, vertexSetSise, gl.FLOAT, false, 0, 0);
+		// 为片段着色器传值
+		var uColor = gl.getUniformLocation(program, "uColor");
+		gl.uniform4fv(uColor, [0, 0, 0, 1]);
+		// 调试着色器和程序
+		if(!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+			console.log("Vertext Shader Info Log: " + gl.getShaderInfoLog(vertexShader));
+		}
+		if(!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+			console.log("Fragment Shader Info Log: " + gl.getShaderInfoLog(fragmentShader));
+		}
+		if(!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+			console.log("Program Info Log: " + gl.getProgramInfoLog(program));
+		}
+
+		// 绘图
+		gl.drawArrays(gl.TRIANGLES, 0, vertexSetCount);
+
+		// 纹理
+		// var image = new Image();
+		// image.src = "image.jpg";
+		// image.onload = function() {
+		// 	var texture = gl.createTexture();
+		// 	gl.bindTexture(gl.TEXTURE_2D, texture);
+		// 	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+		// 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+		// 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+		// 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		// }
+
+		// 释放内存
+		gl.deleteBuffer(buffer);
+
+	} else {
+		console.log("WebGL context could not be created.");
+	}
+}
+</script>
+</body>
+</html>
