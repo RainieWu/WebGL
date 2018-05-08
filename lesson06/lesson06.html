@@ -40,12 +40,16 @@ var gl,
 	cubeVertexPositionBuffer,
 	cubeVertexTextureCoordBuffer,
 	cubeVertexIndexBuffer,
-	texture,
+	textures = [],
+	currentlyPressedKeys = {},
 	pMatrix,
 	mvMatrix,
 	xRot = 0,
+	xSpeed = 0,
 	yRot = 0,
-	zRot = 0,
+	ySpeed = 0,
+	z = -5.0,
+	filter = 0,
 	lastTime = 0;
 
 webGLStart();
@@ -60,6 +64,9 @@ function webGLStart() {
 
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	gl.enable(gl.DEPTH_TEST);
+
+	document.onkeydown = handleKeyDown;
+	document.onkeyup = handleKeyUp;
 
 	tick();
 }
@@ -227,29 +234,85 @@ function initBuffers() {
 }
 
 function initTexture() {
-	texture = gl.createTexture();
-	texture.image = new Image();
-	texture.image.onload = function() {
-		handleLoadedTexture(texture);
+	var image = new Image();
+	for(var i = 0; i < 3; i++) {
+		var texture = gl.createTexture();
+		texture.image = image;
+		textures.push(texture);
+	}
+	image.onload = function() {
+		handleLoadedTexture(textures);
 	}
 	texture.image.src = "../image.jpg";
 }
 
-function handleLoadedTexture(texture) {
-	gl.bindTexture(gl.TEXTURE_2D, texture);
+function handleLoadedTexture(textures) {
 	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+
+	gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textures[0].image);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+	gl.bindTexture(gl.TEXTURE_2D, textures[1]);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textures[1].image);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+	// 图片的宽高必须是2的幂
+	gl.bindTexture(gl.TEXTURE_2D, textures[2]);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textures[2].image);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+	gl.generateMipmap(gl.TEXTURE_2D);
+
 	gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function handleKeyDown(e) {
+	currentlyPressedKeys[e.keyCode] = true;
+	if(String.fromCharCode(e.keyCode) == "F") {
+		filter += 1;
+		if(filter == 3) {
+			filter = 0;
+		}
+	}
+}
+
+function handleKeyUp(e) {
+	currentlyPressedKeys[e.keyCode] = false;
 }
 
 function tick() {
 	okRequestAnimationFrame(tick);
+	handleKeys();
 	drawScene();
 	animate();
+}
+
+function handleKeys() {
+	if(currentlyPressedKeys[33]) {
+		z -= 0.05;
+	}
+	if(currentlyPressedKeys[34]) {
+		z += 0.05;
+	}
+	if(currentlyPressedKeys[37]) {
+		ySpeed -= 1;
+	}
+	if(currentlyPressedKeys[39]) {
+		ySpeed += 1;
+	}
+	if(currentlyPressedKeys[38]) {
+		xSpeed -= 1;
+	}
+	if(currentlyPressedKeys[40]) {
+		xSpeed += 1;
+	}
 }
 
 function drawScene() {
@@ -257,17 +320,16 @@ function drawScene() {
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	pMatrix = okMat4Proj(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
 
-	mvMatrix = okMat4Trans(0.0, 0.0, -5.0);
+	mvMatrix = okMat4Trans(0.0, 0.0, z);
 	mvMatrix.rotX(OAK.SPACE_LOCAL, xRot, true);
 	mvMatrix.rotY(OAK.SPACE_LOCAL, yRot, true);
-	mvMatrix.rotZ(OAK.SPACE_LOCAL, zRot, true);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer);
 	gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubeVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexTextureCoordBuffer);
 	gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, cubeVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
 	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, texture);
+	gl.bindTexture(gl.TEXTURE_2D, textures[filter]);
 	gl.uniform1i(shaderProgram.samplerUniform, 0);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer);
 	setMatrixUniforms();
@@ -283,9 +345,8 @@ function animate() {
 	var timeNow = new Date().getTime();
 	if(lastTime != 0) {
 		var elapsed = timeNow - lastTime;
-		xRot += (90 * elapsed) / 1000.0;
-		yRot += (90 * elapsed) / 1000.0;
-		zRot += (90 * elapsed) / 1000.0;
+		xRot += (xSpeed * elapsed) / 1000.0;
+		yRot += (ySpeed * elapsed) / 1000.0;
 	}
 	lastTime = timeNow;
 }
